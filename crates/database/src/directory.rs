@@ -1,0 +1,242 @@
+use crate::fetch::Fetch;
+use crate::{Example, ExampleDatabase, Input};
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+use sha2::{Digest, Sha384};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::fs::ReadDir;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+use std::{fs, io};
+
+#[derive(Debug)]
+/// Use a directory to store Hypothesis examples as files.
+pub struct DirectoryBasedExampleDatabase<P: AsRef<Path>> {
+    path: P,
+    cache: RefCell<HashMap<Vec<u8>, String>>,
+}
+
+macro_rules! hash {
+    ($var:ident) => {{
+        let mut hasher = Sha384::new();
+        hasher.update($var);
+        &format!("{:x}", hasher.finalize())[..16]
+    }};
+}
+
+impl<P: AsRef<Path>> DirectoryBasedExampleDatabase<P> {
+    /// Create a new example database that stores examples as files.
+    pub fn new(path: P) -> DirectoryBasedExampleDatabase<P> {
+        DirectoryBasedExampleDatabase {
+            path,
+            cache: RefCell::new(HashMap::new()),
+        }
+    }
+
+    #[inline]
+    fn path_for_key(&self, key: &Input) -> PathBuf {
+        let mut cache = self.cache.borrow_mut();
+        if let Some(hashed) = cache.get(key) {
+            self.path.as_ref().join(hashed)
+        } else {
+            let hashed = hash!(key);
+            cache.insert(key.to_vec(), hashed.to_string());
+            self.path.as_ref().join(hashed)
+        }
+    }
+
+    #[inline]
+    fn path_for_value(&self, key_path: &PathBuf, value: &Input) -> PathBuf {
+        let mut cache = self.cache.borrow_mut();
+        if let Some(hashed) = cache.get(value) {
+            key_path.join(hashed)
+        } else {
+            let hashed = hash!(value);
+            cache.insert(value.to_vec(), hashed.to_string());
+            key_path.join(hashed)
+        }
+    }
+}
+
+impl<P: AsRef<Path>> ExampleDatabase for DirectoryBasedExampleDatabase<P> {
+    type Source = Directory;
+    #[inline]
+    fn save(&mut self, key: &Input, value: &Input) {
+        let key_path = self.path_for_key(key);
+        fs::create_dir_all(&key_path).expect("Can't create a directory");
+        let value_path = self.path_for_value(&key_path, value);
+        if !value_path.exists() {
+            let suffix: String = thread_rng().sample_iter(&Alphanumeric).take(16).collect();
+            let tmpname = value_path.with_extension(suffix);
+            let mut target = fs::File::create(&tmpname).expect("Can't create a file");
+            target.write_all(value).expect("Write error");
+            target.sync_all().expect("Can't sync data to disk");
+            if fs::rename(&tmpname, value_path).is_err() {
+                fs::remove_file(&tmpname).expect("Can't remove a temporary file");
+            }
+        }
+    }
+
+    #[inline]
+    fn delete(&mut self, key: &Input, value: &Input) {
+        let key_path = self.path_for_key(key);
+        let value_path = self.path_for_value(&key_path, value);
+        let _ = fs::remove_file(&value_path);
+    }
+
+    #[inline]
+    fn r#move(&mut self, src: &Input, dst: &Input, value: &Input) {
+        if src == dst {
+            self.save(src, value)
+        } else {
+            let src_path = self.path_for_key(src);
+            let dst_path = self.path_for_key(dst);
+            if fs::rename(
+                self.path_for_value(&src_path, value),
+                self.path_for_value(&dst_path, value),
+            )
+            .is_err()
+            {
+                self.delete(src, value);
+                self.save(dst, value)
+            }
+        }
+    }
+
+    #[inline]
+    fn fetch(&self, key: &Input) -> Fetch<Self::Source> {
+        Fetch::new(Directory {
+            path: self.path_for_key(key),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct Directory {
+    path: PathBuf,
+}
+
+#[derive(Debug)]
+/// Iterates over files in a directory and yields examples.
+pub struct FileIterator {
+    entries: Option<ReadDir>,
+}
+
+impl Iterator for FileIterator {
+    type Item = Example;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(entries) = &mut self.entries {
+            let entry = entries.next();
+            // TODO. ignore only errors equivalent to Python's OSError
+            // In this Result and all levels deeper
+            if let Some(Ok(entry)) = entry {
+                if let Ok(file) = fs::File::open(entry.path()) {
+                    let mut buf_reader = io::BufReader::new(file);
+                    let mut contents = Vec::new();
+                    if buf_reader.read_to_end(&mut contents).is_ok() {
+                        return Some(contents);
+                    }
+                }
+            }
+            None
+        } else {
+            None
+        }
+    }
+}
+
+impl IntoIterator for Directory {
+    type Item = Example;
+    type IntoIter = FileIterator;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        let entries = if !self.path.exists() {
+            None
+        } else {
+            Some(fs::read_dir(self.path).expect("Can't read the directory"))
+        };
+        FileIterator { entries }
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests_util {
+    use super::*;
+    use tempdir::TempDir;
+
+    pub(crate) struct TestDatabase<P: AsRef<Path>> {
+        _temp: TempDir,
+        db: DirectoryBasedExampleDatabase<P>,
+        pub(crate) path: String,
+    }
+
+    impl TestDatabase<String> {
+        pub(crate) fn new() -> Self {
+            let dir = TempDir::new("test-db").expect("Should always work");
+            let path = dir.path().to_str().expect("This path is UTF-8").to_string();
+            let db = DirectoryBasedExampleDatabase::new(path.clone());
+            TestDatabase {
+                _temp: dir,
+                db,
+                path,
+            }
+        }
+
+        pub(crate) fn from_string(path: String) -> Self {
+            let db = DirectoryBasedExampleDatabase::new(path.clone());
+            TestDatabase {
+                _temp: TempDir::new("test-db").expect("Should always work"),
+                db,
+                path,
+            }
+        }
+    }
+
+    impl ExampleDatabase for TestDatabase<String> {
+        type Source = Directory;
+
+        fn save(&mut self, key: &Input, value: &Input) {
+            self.db.save(key, value)
+        }
+
+        fn delete(&mut self, key: &Input, value: &Input) {
+            self.db.delete(key, value)
+        }
+
+        fn r#move(&mut self, src: &Input, dst: &Input, value: &Input) {
+            self.db.r#move(src, dst, value)
+        }
+
+        fn fetch(&self, key: &Input) -> Fetch<Self::Source> {
+            self.db.fetch(key)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn two_directory_databases_can_interact() {
+        let mut db1 = tests_util::TestDatabase::new();
+        let mut db2 = tests_util::TestDatabase::from_string(db1.path.clone());
+        assert_eq!(db1.path, db2.path);
+        db1.save(b"foo", b"bar");
+        assert_eq!(db2.fetch(b"foo").into_vec(), vec![b"bar"]);
+        db2.save(b"foo", b"bar");
+        db2.save(b"foo", b"baz");
+        let mut result = db1.fetch(b"foo").into_vec();
+        result.sort_unstable();
+        assert_eq!(result, vec![b"bar", b"baz"]);
+    }
+
+    #[test]
+    fn can_handle_disappearing_files() {
+        unimplemented!("!")
+    }
+}

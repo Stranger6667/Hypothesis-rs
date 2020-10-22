@@ -1,0 +1,7 @@
+crates/*/target
+Cargo.lock
+bindings/database-python/build
+bindings/database-python/dist
+bindings/database-python/target
+bindings/*/*.egg-info
+bindings/*/.benchmarks

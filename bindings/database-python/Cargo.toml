@@ -1,0 +1,17 @@
+[package]
+name = "database-python"
+version = "0.1.0"
+authors = ["Dmitry Dygalo <dadygalo@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "database"
+crate-type = ["cdylib"]
+
+[dependencies]
+database = { path = "../../crates/database", version = "*" }
+pyo3 = { version = "0.12.3", features = ["extension-module"] }
+
+[profile.release]
+codegen-units = 1
+lto = "on"
