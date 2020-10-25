@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 rand = "0.7.3"
 sha2 = "0.9.1"
+arrayvec = "0.5"
 
 [dev-dependencies]
 tempdir = "0.3"
