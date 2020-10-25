@@ -163,6 +163,12 @@ impl IntoIterator for Directory {
     }
 }
 
+#[cfg(feature = "benchmark")]
+/// Benchmark-only function to measure the `hash!` performance
+pub fn calculate_hash(value: &Input) {
+    hash!(value);
+}
+
 #[cfg(test)]
 pub(crate) mod tests_util {
     use super::*;

@@ -1,4 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use database::calculate_hash;
 use database::{DirectoryBasedExampleDatabase, ExampleDatabase, InMemoryExampleDatabase};
 
 const DATABASE_PATH: &'static str = "/tmp/.hypothesis-db-rs-test";
@@ -105,6 +106,15 @@ fn inmemory_delete_existing_key_value(c: &mut Criterion) {
     bench_delete_existing_key_value(c, "inmemory delete existing key value", db);
 }
 
+fn hash_formatting(c: &mut Criterion) {
+    let value = black_box(b"foo");
+    c.bench_function("hash formatting", |b| {
+        b.iter(|| {
+            calculate_hash(value);
+        })
+    });
+}
+
 criterion_group!(
     directory,
     directory_save,
@@ -121,6 +131,7 @@ criterion_group!(
     inmemory_fetch_empty,
     inmemory_delete_not_existing_key,
     inmemory_delete_existing_key_no_value,
-    inmemory_delete_existing_key_value
+    inmemory_delete_existing_key_value,
 );
-criterion_main!(directory, inmemory);
+criterion_group!(hashes, hash_formatting);
+criterion_main!(directory, inmemory, hashes);

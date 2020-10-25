@@ -15,6 +15,9 @@ tempdir = "0.3"
 criterion = ">= 0.1"
 test-case = "1"
 
+[features]
+benchmark = []
+
 [[bench]]
 name = "database"
 harness = false

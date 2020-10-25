@@ -63,6 +63,9 @@ pub trait ExampleDatabase {
     fn fetch(&self, key: &Input) -> Fetch<Self::Source>;
 }
 
+#[cfg(feature = "benchmark")]
+pub use directory::calculate_hash;
+
 #[cfg(test)]
 mod tests {
     use super::*;
