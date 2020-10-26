@@ -93,7 +93,7 @@ impl PyIterProtocol for InMemoryFetch {
 
 #[pyclass(module = "database")]
 struct DirectoryBasedExampleDatabase {
-    inner: db::DirectoryBasedExampleDatabase<String>,
+    inner: db::DirectoryBasedExampleDatabase,
 }
 
 #[pymethods]

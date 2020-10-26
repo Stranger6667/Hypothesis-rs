@@ -14,8 +14,8 @@ use std::{fs, io};
 
 #[derive(Debug)]
 /// Use a directory to store Hypothesis examples as files.
-pub struct DirectoryBasedExampleDatabase<P: AsRef<Path>> {
-    path: P,
+pub struct DirectoryBasedExampleDatabase {
+    path: PathBuf,
     cache: RefCell<HashMap<Vec<u8>, ArrayString<[u8; 16]>>>,
 }
 
@@ -31,11 +31,11 @@ macro_rules! hash {
     }};
 }
 
-impl<P: AsRef<Path>> DirectoryBasedExampleDatabase<P> {
+impl DirectoryBasedExampleDatabase {
     /// Create a new example database that stores examples as files.
-    pub fn new(path: P) -> DirectoryBasedExampleDatabase<P> {
+    pub fn new<P: AsRef<Path>>(path: P) -> DirectoryBasedExampleDatabase {
         DirectoryBasedExampleDatabase {
-            path,
+            path: path.as_ref().to_path_buf(),
             cache: RefCell::new(HashMap::new()),
         }
     }
@@ -44,11 +44,11 @@ impl<P: AsRef<Path>> DirectoryBasedExampleDatabase<P> {
     fn path_for_key(&self, key: &Input) -> PathBuf {
         let mut cache = self.cache.borrow_mut();
         if let Some(hashed) = cache.get(key) {
-            self.path.as_ref().join(hashed.as_str())
+            self.path.join(hashed.as_str())
         } else {
             let hashed = hash!(key);
             cache.insert(key.to_vec(), hashed);
-            self.path.as_ref().join(hashed.as_str())
+            self.path.join(hashed.as_str())
         }
     }
 
@@ -65,7 +65,7 @@ impl<P: AsRef<Path>> DirectoryBasedExampleDatabase<P> {
     }
 }
 
-impl<P: AsRef<Path>> ExampleDatabase for DirectoryBasedExampleDatabase<P> {
+impl ExampleDatabase for DirectoryBasedExampleDatabase {
     type Source = Directory;
     #[inline]
     fn save(&mut self, key: &Input, value: &Input) {
@@ -180,13 +180,13 @@ pub(crate) mod tests_util {
     use super::*;
     use tempdir::TempDir;
 
-    pub(crate) struct TestDatabase<P: AsRef<Path>> {
+    pub(crate) struct TestDatabase {
         _temp: TempDir,
-        db: DirectoryBasedExampleDatabase<P>,
+        db: DirectoryBasedExampleDatabase,
         pub(crate) path: String,
     }
 
-    impl TestDatabase<String> {
+    impl TestDatabase {
         pub(crate) fn new() -> Self {
             let dir = TempDir::new("test-db").expect("Should always work");
             let path = dir.path().to_str().expect("This path is UTF-8").to_string();
@@ -208,7 +208,7 @@ pub(crate) mod tests_util {
         }
     }
 
-    impl ExampleDatabase for TestDatabase<String> {
+    impl ExampleDatabase for TestDatabase {
         type Source = Directory;
 
         fn save(&mut self, key: &Input, value: &Input) {
