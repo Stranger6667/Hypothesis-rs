@@ -15,7 +15,8 @@ use std::{fs, io};
 #[derive(Debug)]
 /// Use a directory to store Hypothesis examples as files.
 pub struct DirectoryBasedExampleDatabase {
-    path: PathBuf,
+    /// Path to the examples database.
+    pub path: PathBuf,
     cache: RefCell<HashMap<Vec<u8>, ArrayString<[u8; 16]>>>,
 }
 

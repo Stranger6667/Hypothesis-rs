@@ -24,6 +24,7 @@
 )]
 use database as db;
 use database::ExampleDatabase;
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::PyIterProtocol;
@@ -130,6 +131,14 @@ impl DirectoryBasedExampleDatabase {
         Ok(DirectoryFetch {
             inner: self.inner.fetch(key).into_iter(),
         })
+    }
+
+    #[getter]
+    fn path(&self) -> PyResult<&str> {
+        self.inner
+            .path
+            .to_str()
+            .ok_or_else(|| PyValueError::new_err("Can't display path"))
     }
 }
 
