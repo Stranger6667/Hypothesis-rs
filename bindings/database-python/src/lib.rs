@@ -101,9 +101,18 @@ struct DirectoryBasedExampleDatabase {
 impl DirectoryBasedExampleDatabase {
     #[new]
     /// Create a new example database that stores examples as files.
-    fn new(path: String) -> Self {
+    fn new(path: &PyAny) -> Self {
+        // Cast the input to a string, which is equivalent to `str(path)`
+        // Note, it differs from the current Python impl - e.g. integer path will fail at runtime
+        // and won't be casted to a string, but at the moment I am not sure how to pass only
+        // strings and path-like objects
+        let string_path = path
+            .str()
+            .expect("Can't cast to a string")
+            .to_str()
+            .expect("Path is not unicode");
         Self {
-            inner: db::DirectoryBasedExampleDatabase::new(path),
+            inner: db::DirectoryBasedExampleDatabase::new(string_path),
         }
     }
 
