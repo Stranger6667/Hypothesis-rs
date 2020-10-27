@@ -7,10 +7,10 @@ use sha2::{Digest, Sha384};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write as FmtWrite;
+use std::fs;
 use std::fs::ReadDir;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::{fs, io};
 
 type Cache = HashMap<Vec<u8>, ArrayString<[u8; 16]>>;
 
@@ -138,14 +138,13 @@ impl Iterator for FileIterator {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(entries) = &mut self.entries {
-            let entry = entries.next();
             // TODO. ignore only errors equivalent to Python's OSError
             // In this Result and all levels deeper
-            if let Some(Ok(entry)) = entry {
-                if let Ok(file) = fs::File::open(entry.path()) {
-                    let mut buf_reader = io::BufReader::new(file);
-                    let mut contents = Vec::new();
-                    if buf_reader.read_to_end(&mut contents).is_ok() {
+            if let Some(Ok(entry)) = entries.next() {
+                if let Ok(mut file) = fs::File::open(entry.path()) {
+                    // We don't need buffered reads here, we'd like to make one read
+                    let mut contents = Vec::with_capacity(32);
+                    if file.read_to_end(&mut contents).is_ok() {
                         return Some(contents);
                     }
                 }
