@@ -73,7 +73,9 @@ impl ExampleDatabase for DirectoryBasedExampleDatabase {
     #[inline]
     fn save(&mut self, key: &Input, value: &Input) {
         let key_path = self.path_for_key(key);
-        fs::create_dir_all(&key_path).expect("Can't create a directory");
+        if !key_path.exists() {
+            fs::create_dir_all(&key_path).expect("Can't create a directory");
+        }
         let value_path = self.path_for_value(&key_path, value);
         if !value_path.exists() {
             let suffix: String = thread_rng().sample_iter(&Alphanumeric).take(16).collect();
