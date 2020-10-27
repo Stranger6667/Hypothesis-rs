@@ -12,12 +12,14 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
+type Cache = HashMap<Vec<u8>, ArrayString<[u8; 16]>>;
+
 #[derive(Debug)]
 /// Use a directory to store Hypothesis examples as files.
 pub struct DirectoryBasedExampleDatabase {
     /// Path to the examples database.
     pub path: PathBuf,
-    cache: RefCell<HashMap<Vec<u8>, ArrayString<[u8; 16]>>>,
+    cache: RefCell<Cache>,
 }
 
 macro_rules! hash {
