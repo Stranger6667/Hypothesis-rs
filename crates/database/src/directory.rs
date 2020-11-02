@@ -248,9 +248,4 @@ mod tests {
         result.sort_unstable();
         assert_eq!(result, vec![b"bar", b"baz"]);
     }
-
-    #[test]
-    fn can_handle_disappearing_files() {
-        unimplemented!("!")
-    }
 }
