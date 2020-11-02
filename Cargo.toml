@@ -1,0 +1,21 @@
+[package]
+name = "hypothesis-rs"
+version = "0.1.0"
+authors = ["Dmitry Dygalo <dadygalo@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "hypothesis"
+path = "crates/lib.rs"
+
+[workspace]
+members = [
+  "crates/database",
+]
+
+[dependencies]
+database = { version = "*", path = "crates/database" }
+
+[profile.release]
+codegen-units = 1
+lto = "on"
