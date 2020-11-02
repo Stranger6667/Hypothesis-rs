@@ -12,6 +12,9 @@ path = "crates/lib.rs"
 members = [
   "crates/database",
 ]
+exclude = [
+  "bindings/database-python",
+]
 
 [dependencies]
 database = { version = "*", path = "crates/database" }
