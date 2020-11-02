@@ -7,7 +7,12 @@ const DATABASE_PATH: &'static str = "/tmp/.hypothesis-db-rs-test";
 fn bench_save(c: &mut Criterion, id: &str, mut db: impl ExampleDatabase) {
     let key = black_box(b"foo");
     let value = black_box(b"bar");
-    c.bench_function(id, |b| b.iter(|| db.save(key, value)));
+    c.bench_function(id, |b| {
+        b.iter(|| {
+            db.save(key, value);
+            db.delete(key, value);
+        })
+    });
 }
 
 fn bench_fetch_some(c: &mut Criterion, id: &str, mut db: impl ExampleDatabase) {
