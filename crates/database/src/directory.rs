@@ -140,8 +140,6 @@ impl Iterator for FileIterator {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(entries) = &mut self.entries {
-            // TODO. ignore only errors equivalent to Python's OSError
-            // In this Result and all levels deeper
             if let Some(Ok(entry)) = entries.next() {
                 if let Ok(mut file) = fs::File::open(entry.path()) {
                     // We don't need buffered reads here, we'd like to make one read
