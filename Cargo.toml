@@ -12,6 +12,7 @@ path = "crates/lib.rs"
 members = [
   "crates/charmap",
   "crates/database",
+  "crates/intervalset",
 ]
 exclude = [
   "bindings/charmap-python",
@@ -21,6 +22,7 @@ exclude = [
 [dependencies]
 database = { version = "*", path = "crates/database" }
 charmap = { version = "*", path = "crates/charmap" }
+intervalset = { version = "*", path = "crates/intervalset" }
 
 [profile.release]
 codegen-units = 1
