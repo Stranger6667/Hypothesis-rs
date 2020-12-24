@@ -20,6 +20,7 @@ exclude = [
 
 [dependencies]
 database = { version = "*", path = "crates/database" }
+charmap = { version = "*", path = "crates/charmap" }
 
 [profile.release]
 codegen-units = 1
