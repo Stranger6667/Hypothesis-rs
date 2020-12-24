@@ -1,8 +1,14 @@
 target
 crates/*/target
 Cargo.lock
-bindings/database-python/build
-bindings/database-python/dist
-bindings/database-python/target
+bindings/*/build
+bindings/*/dist
+bindings/*/target
 bindings/*/*.egg-info
 bindings/*/.benchmarks
+*.so
+.tox
+.hypothesis
+flamegraph.svg
+perf.data
+perf.data.old

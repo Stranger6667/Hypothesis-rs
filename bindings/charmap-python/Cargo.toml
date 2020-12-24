@@ -1,0 +1,24 @@
+[package]
+name = "charmap-python"
+version = "0.1.0"
+authors = ["Dmitry Dygalo <dadygalo@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "charmap"
+crate-type = ["cdylib"]
+
+[dependencies]
+charmap = { path = "../../crates/charmap", version = "*" }
+pyo3 = { version = "0.12.3", features = ["extension-module"] }
+lazy_static = "1.4"
+pyo3-built = "0.4"
+
+[build-dependencies]
+built = { version = "0.4", features = ["chrono"] }
+
+[profile.release]
+codegen-units = 1
+lto = "on"

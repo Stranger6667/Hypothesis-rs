@@ -54,7 +54,6 @@ jobs:
           architecture: x64
 
       - run: python -m pip install tox
-        working-directory: ./bindings/database-python
 
       - uses: actions-rs/toolchain@v1
         with:
@@ -63,7 +62,6 @@ jobs:
 
       - name: Run ${{ matrix.python }} tox job
         run: tox -e py
-        working-directory: ./bindings/database-python
 
   fmt:
     name: Rustfmt

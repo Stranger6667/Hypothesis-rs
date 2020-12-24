@@ -10,9 +10,11 @@ path = "crates/lib.rs"
 
 [workspace]
 members = [
+  "crates/charmap",
   "crates/database",
 ]
 exclude = [
+  "bindings/charmap-python",
   "bindings/database-python",
 ]
 
