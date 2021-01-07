@@ -1,4 +1,5 @@
 use charmap;
+use charmap::{CategoryBitMap, UnicodeCategory};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn bench_charmap(c: &mut Criterion) {
@@ -59,36 +60,38 @@ fn intervals(c: &mut Criterion) {
 
 fn category_key(c: &mut Criterion) {
     let version = black_box(charmap::UnicodeVersion::V13);
-    let exclude = black_box(["So"]);
-    let include = black_box(["Lu", "Me", "Cs", "Cc"]);
+    let exclude = black_box(UnicodeCategory::So);
+    let include = black_box(
+        UnicodeCategory::Lu | UnicodeCategory::Me | UnicodeCategory::Cs | UnicodeCategory::Cc,
+    );
     c.bench_function("category_key", |b| {
         b.iter(|| {
-            charmap::category_key(version, &exclude, Some(&include));
+            charmap::category_key(version, exclude.into(), Some(include));
         })
     });
     c.bench_function("category_key_no_exclude", |b| {
         b.iter(|| {
-            charmap::category_key(version, black_box(&[]), Some(&include));
+            charmap::category_key(version, black_box(CategoryBitMap::new()), Some(include));
         })
     });
     c.bench_function("category_key_no_include", |b| {
         b.iter(|| {
-            charmap::category_key(version, &exclude, black_box(None));
+            charmap::category_key(version, exclude.into(), black_box(None));
         })
     });
     c.bench_function("category_key_no_include_no_exclude", |b| {
         b.iter(|| {
-            charmap::category_key(version, black_box(&[]), black_box(None));
+            charmap::category_key(version, black_box(CategoryBitMap::new()), black_box(None));
         })
     });
 }
 
 fn query_for_key(c: &mut Criterion) {
     let version = black_box(charmap::UnicodeVersion::V13);
-    let key = black_box(["Zl", "Zp", "Co"]);
+    let key = black_box(UnicodeCategory::Zl | UnicodeCategory::Zp | UnicodeCategory::Co);
     c.bench_function("query_for_key", |b| {
         b.iter(|| {
-            charmap::query_for_key(version, &key);
+            charmap::query_for_key(version, key);
         })
     });
 }
@@ -96,7 +99,7 @@ fn query_for_key(c: &mut Criterion) {
 fn query(c: &mut Criterion) {
     let version = black_box(charmap::UnicodeVersion::V13);
     let exclude_categories = black_box(None);
-    let include_categories = black_box(["Lu"]);
+    let include_categories = black_box(UnicodeCategory::Lu);
     let min_codepoint = black_box(Some(0));
     let max_codepoint = black_box(Some(128));
     let include_characters = black_box(Some("☃"));
@@ -105,7 +108,7 @@ fn query(c: &mut Criterion) {
         b.iter(|| {
             let _ = version.query(
                 exclude_categories,
-                Some(&include_categories),
+                Some(include_categories),
                 min_codepoint,
                 max_codepoint,
                 include_characters,
@@ -117,7 +120,7 @@ fn query(c: &mut Criterion) {
         b.iter(|| {
             let _ = version.query(
                 exclude_categories,
-                Some(&include_categories),
+                Some(include_categories),
                 min_codepoint,
                 max_codepoint,
                 include_characters,
@@ -129,7 +132,7 @@ fn query(c: &mut Criterion) {
         b.iter(|| {
             let _ = version.query(
                 exclude_categories,
-                Some(&include_categories),
+                Some(include_categories),
                 min_codepoint,
                 max_codepoint,
                 black_box(Some("0123456789")),

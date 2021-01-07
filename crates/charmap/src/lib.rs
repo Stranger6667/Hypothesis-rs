@@ -10,7 +10,7 @@
 //! ```rust
 //! let intervals = charmap::UnicodeVersion::V13.query(
 //!     None,           // exclude categories
-//!     Some(&["Lu"]),  // include categories (Uppercase letters)
+//!     Some(charmap::UnicodeCategory::Lu),  // include categories (Uppercase letters)
 //!     Some(0),        // minimum codepoint
 //!     Some(128),      // maximum codepoint
 //!     Some("☃"),      // include characters
@@ -31,7 +31,7 @@
     clippy::redundant_closure,
     clippy::trivially_copy_pass_by_ref,
     missing_debug_implementations,
-    missing_docs,
+    // missing_docs,
     trivial_casts,
     trivial_numeric_casts,
     unused_extern_crates,
@@ -41,11 +41,14 @@
     clippy::integer_arithmetic,
     clippy::unwrap_used
 )]
+mod categories;
 mod inner;
 mod tables;
 use ahash::AHashMap;
+pub use categories::{CategoryBitMap, UnicodeCategory};
 use lazy_static::lazy_static;
 use std::cmp::{max, min};
+use std::convert::TryFrom;
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::sync::Mutex;
@@ -167,66 +170,39 @@ impl UnicodeVersion {
     pub fn as_general_categories<'a>(
         self,
         categories: &[&'a str],
-    ) -> Result<Vec<Category>, Error<'a>> {
+    ) -> Result<CategoryBitMap, Error<'a>> {
         if !categories.is_empty() {
-            let major_classes = ["L", "M", "N", "P", "S", "Z", "C"];
-            let mut out = Vec::with_capacity(30);
-            let mut cats: SmallVec<[&str; 30]> = categories.into();
-            cats.sort_unstable();
-            cats.dedup();
-            let all_categories = self.categories();
-            for c in &cats {
-                if major_classes.contains(c) {
-                    out.extend(all_categories.iter().filter(|i| i.starts_with(c)))
-                } else if !all_categories.contains(c) {
-                    return Err(Error::InvalidCategory(c));
-                }
-            }
-            Ok(out)
+            Ok(CategoryBitMap::try_from(categories)?)
         } else {
-            Ok(vec![])
+            Ok(CategoryBitMap::new())
         }
     }
 
     /// Return a tuple of intervals covering the codepoints for all characters
     /// that meet the input criteria.
     #[inline]
-    pub fn query<'a>(
+    pub fn query<'a, V: Into<CategoryBitMap>>(
         self,
-        exclude_categories: Option<&[&'a str]>,
-        include_categories: Option<&[&'a str]>,
+        exclude_categories: Option<V>,
+        include_categories: Option<V>,
         min_codepoint: Option<u32>,
         max_codepoint: Option<u32>,
         include_characters: Option<&str>,
         exclude_characters: Option<&str>,
     ) -> Result<Vec<Interval>, Error<'a>> {
-        let exclude_categories = exclude_categories.unwrap_or(&[]);
-        // Category validation
-        let all_categories = self.categories();
-        for category in exclude_categories {
-            if !all_categories.contains(category) {
-                return Err(Error::InvalidCategory(category));
-            }
-        }
-        if let Some(categories) = include_categories {
-            for category in categories {
-                if !all_categories.contains(category) {
-                    return Err(Error::InvalidCategory(category));
-                }
-            }
-        }
-
         // Min codepoint <= Max codepoint
         let min_codepoint = min_codepoint.unwrap_or(0);
         let max_codepoint = max_codepoint.unwrap_or(MAX_CODEPOINT);
         if min_codepoint > max_codepoint {
             return Err(Error::InvalidCodepoints(min_codepoint, max_codepoint));
         }
-
+        let exclude_categories: CategoryBitMap =
+            exclude_categories.map_or_else(CategoryBitMap::new, |x| x.into());
+        let include_categories: Option<CategoryBitMap> = include_categories.map(|x| x.into());
         let category_key = inner::category_key(self, exclude_categories, include_categories);
 
         let cache_key = (
-            category_key.clone(),
+            category_key,
             min_codepoint,
             max_codepoint,
             include_characters.map(String::from),
@@ -244,7 +220,7 @@ impl UnicodeVersion {
         let character_intervals = inner::intervals(include_characters);
         let exclude_intervals = inner::intervals(exclude_characters);
 
-        let base = inner::query_for_key(self, category_key.as_slice());
+        let base = inner::query_for_key(self, category_key);
         let mut result = vec![];
         for (u, v) in base {
             if v >= min_codepoint && u <= max_codepoint {
@@ -260,7 +236,7 @@ impl UnicodeVersion {
     }
 }
 
-type QueryCacheKey = (Vec<Category>, u32, u32, Option<String>, Option<String>);
+type QueryCacheKey = (CategoryBitMap, u32, u32, Option<String>, Option<String>);
 
 lazy_static! {
     static ref QUERY_CACHE: Mutex<AHashMap<QueryCacheKey, Vec<Interval>>> =
@@ -281,32 +257,33 @@ pub use inner::query_for_key;
 pub use inner::subtract_intervals;
 #[cfg(feature = "benchmark")]
 pub use inner::union_intervals;
-use smallvec::SmallVec;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use test_case::test_case;
 
-    #[test_case(&["N"], vec!["Nl", "Nd", "No"])]
-    #[test_case(&["N", "N"], vec!["Nl", "Nd", "No"])]
+    #[test_case(&["N"], vec!["Nd", "Nl", "No"])]
+    #[test_case(&["N", "N"], vec!["Nd", "Nl", "No"])]
     fn as_general_categories_work(categories: &[&'static str], expected: Vec<&str>) {
         assert_eq!(
             UnicodeVersion::V13
                 .as_general_categories(categories)
-                .unwrap(),
+                .unwrap()
+                .iter()
+                .collect::<Vec<&str>>(),
             expected
         )
     }
 
     #[test_case(None, None, None, None, None, None, &[(0, 1114111)])]
     #[test_case(None, None, Some(0), Some(128), None, None, &[(0, 128)])]
-    #[test_case(None, Some(&["Lu"]), Some(0), Some(128), None, None, &[(65, 90)])]
-    #[test_case(None, Some(&["Lu"]), Some(0), Some(128), Some("☃"), None, &[(65, 90), (9731, 9731)])]
+    #[test_case(None, Some(UnicodeCategory::Lu), Some(0), Some(128), None, None, &[(65, 90)])]
+    #[test_case(None, Some(UnicodeCategory::Lu), Some(0), Some(128), Some("☃"), None, &[(65, 90), (9731, 9731)])]
     #[test_case(None, None, Some(0), Some(68104), Some("\u{10A07}"), None, &[(0, 68104)])]
     fn query_works(
-        exclude_categories: Option<&[&str]>,
-        include_categories: Option<&[&str]>,
+        exclude_categories: Option<UnicodeCategory>,
+        include_categories: Option<UnicodeCategory>,
         min_codepoint: Option<u32>,
         max_codepoint: Option<u32>,
         include_characters: Option<&str>,
@@ -317,7 +294,7 @@ mod tests {
             UnicodeVersion::V13
                 .query(
                     exclude_categories,
-                    include_categories,
+                    include_categories.into(),
                     min_codepoint,
                     max_codepoint,
                     include_characters,

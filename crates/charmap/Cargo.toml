@@ -10,6 +10,8 @@ edition = "2018"
 lazy_static = "1.4"
 ahash = "0.6"
 smallvec = "1.5"
+bitmaps = "2.1.0"
+typenum = "1"
 
 [dev-dependencies]
 criterion = ">= 0.1"

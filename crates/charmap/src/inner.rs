@@ -1,5 +1,8 @@
-use crate::{Category, CharMap, Interval, TableEntry, UnicodeVersion, MAX_CODEPOINT};
-use ahash::{AHashMap, AHashSet};
+use crate::categories::ALL_CATEGORIES;
+use crate::{
+    Category, CategoryBitMap, CharMap, Interval, TableEntry, UnicodeVersion, MAX_CODEPOINT,
+};
+use ahash::AHashMap;
 use lazy_static::lazy_static;
 use smallvec::SmallVec;
 use std::convert::TryInto;
@@ -128,57 +131,44 @@ fn merge_intervals(intervals: &mut [Interval]) -> usize {
 #[inline]
 pub fn category_key(
     version: UnicodeVersion,
-    exclude: &[&str],
-    include: Option<&[&str]>,
-) -> Vec<Category> {
-    let cs = version.categories();
-    // The default `collect` will dynamically grow the vector in multiple allocations, but we know
-    // the maximum capacity upfront and can avoid a few allocations
-    let mut out = Vec::with_capacity(30);
+    exclude: CategoryBitMap,
+    include: Option<CategoryBitMap>,
+) -> CategoryBitMap {
     if let Some(include) = include {
-        if exclude.is_empty() {
-            out.extend(cs.iter().filter(|c| include.contains(c)).copied())
+        if include.is_empty() {
+            // include no categories
+            include
         } else {
-            let include: SmallVec<[&&str; 30]> =
-                include.iter().filter(|c| !exclude.contains(c)).collect();
-            out.extend(cs.iter().filter(|c| include.contains(c)).copied());
+            (CategoryBitMap::from_value(ALL_CATEGORIES) ^ exclude) & include
         }
-    } else if exclude.is_empty() {
-        out.extend_from_slice(cs)
     } else {
-        out.extend(cs.iter().filter(|c| !exclude.contains(c)).copied())
-    };
-    out
+        CategoryBitMap::from_value(ALL_CATEGORIES) ^ exclude
+    }
 }
 
 lazy_static! {
-    static ref CATEGORY_INDEX_CACHE: Mutex<AHashMap<Vec<Category>, Vec<Interval>>> =
+    static ref CATEGORY_INDEX_CACHE: Mutex<AHashMap<CategoryBitMap, Vec<Interval>>> =
         Mutex::new(AHashMap::new());
 }
 
 #[inline]
-pub fn query_for_key(version: UnicodeVersion, key: &[Category]) -> Vec<Interval> {
-    // NOTE. The right hand side can be calculated via lazy_static
-    if key.iter().collect::<AHashSet<&Category>>()
-        == version.categories().iter().collect::<AHashSet<&Category>>()
-    {
+pub fn query_for_key(version: UnicodeVersion, key: CategoryBitMap) -> Vec<Interval> {
+    if key == CategoryBitMap::from_value(ALL_CATEGORIES) {
         return vec![(0, MAX_CODEPOINT)];
     }
-    if let Some((last, left)) = key.split_last() {
+    if let Some(idx) = key.first_index() {
         if let Ok(cache) = CATEGORY_INDEX_CACHE.lock() {
-            if let Some(cached) = cache.get(key) {
+            if let Some(cached) = cache.get(&key) {
                 return cached.clone();
             }
         }
-        let left = query_for_key(version, left);
-        // `last` is a valid Unicode category name; therefore it always exists in `charmap`
-        let right = version
-            .charmap()
-            .get(last)
-            .expect("It should be a valid Unicode category");
+        let mut next_key = key;
+        next_key.set(idx, false);
+        let left = query_for_key(version, next_key);
+        let right = version.table()[idx].1;
         let result = union_intervals(left, right);
         if let Ok(mut cache) = CATEGORY_INDEX_CACHE.lock() {
-            cache.insert(key.to_vec(), result.clone());
+            cache.insert(key, result.clone());
         }
         result
     } else {
@@ -189,6 +179,7 @@ pub fn query_for_key(version: UnicodeVersion, key: &[Category]) -> Vec<Interval>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::UnicodeCategory;
 
     #[test]
     fn union_intervals_empty() {
@@ -237,17 +228,27 @@ mod tests {
         assert_eq!(
             category_key(
                 UnicodeVersion::V13,
-                &["So"],
-                Some(&["Lu", "Me", "Cs", "So"])
-            ),
-            vec!["Me", "Lu", "Cs"]
+                UnicodeCategory::So.into(),
+                Some(
+                    UnicodeCategory::Lu
+                        | UnicodeCategory::Me
+                        | UnicodeCategory::Cs
+                        | UnicodeCategory::So
+                )
+            )
+            .iter()
+            .collect::<Vec<&str>>(),
+            vec!["Me", "Cs", "Lu"]
         );
     }
 
     #[test]
     fn test_query_for_key() {
         assert_eq!(
-            query_for_key(UnicodeVersion::V13, &["Zl", "Zp", "Co"]),
+            query_for_key(
+                UnicodeVersion::V13,
+                UnicodeCategory::Zl | UnicodeCategory::Zp | UnicodeCategory::Co
+            ),
             vec![
                 (8232, 8233),
                 (57344, 63743),
@@ -262,35 +263,7 @@ mod tests {
         assert_eq!(
             query_for_key(
                 UnicodeVersion::V13,
-                &[
-                    "Pe", "Pc", "Cc", "Sc", "Pd", "Nd", "Me", "Pf", "Cf", "Pi", "Nl", "Zl", "Ll",
-                    "Sm", "Lm", "Sk", "Mn", "Ps", "Lo", "No", "Po", "So", "Zp", "Co", "Zs", "Mc",
-                    "Cs", "Lt", "Cn", "Lu"
-                ]
-            ),
-            vec![(0, MAX_CODEPOINT),]
-        );
-        // Non-default order
-        assert_eq!(
-            query_for_key(
-                UnicodeVersion::V13,
-                &[
-                    "Sm", "Lm", "Sk", "Mn", "Ps", "Lo", "No", "Po", "So", "Zp", "Co", "Zs", "Mc",
-                    "Pe", "Pc", "Cc", "Sc", "Pd", "Nd", "Me", "Pf", "Cf", "Pi", "Nl", "Zl", "Ll",
-                    "Cs", "Lt", "Cn", "Lu"
-                ]
-            ),
-            vec![(0, MAX_CODEPOINT),]
-        );
-        // Duplicated categories
-        assert_eq!(
-            query_for_key(
-                UnicodeVersion::V13,
-                &[
-                    "Sm", "Lm", "Sk", "Mn", "Ps", "Lo", "No", "Po", "So", "Zp", "Co", "Zs", "Mc",
-                    "Pe", "Pc", "Cc", "Sc", "Pd", "Nd", "Me", "Pf", "Cf", "Pi", "Nl", "Zl", "Ll",
-                    "Cs", "Lt", "Cn", "Lu", "Lu", "Sm"
-                ]
+                CategoryBitMap::from_value(ALL_CATEGORIES)
             ),
             vec![(0, MAX_CODEPOINT),]
         );

@@ -1,10 +1,9 @@
-use charmap::Error;
+use charmap::{CategoryBitMap, Error};
 use lazy_static::lazy_static;
 use pyo3::exceptions::{PyAssertionError, PyRuntimeError, PyTypeError};
 use pyo3::types::{PyBytes, PyDict, PyInt, PyString, PyTuple};
 use pyo3::AsPyPointer;
 use pyo3::{ffi, prelude::*, wrap_pyfunction};
-use std::collections::HashSet;
 use std::sync::Mutex;
 
 #[allow(dead_code)]
@@ -122,10 +121,21 @@ fn charmap(py: Python, module: &PyModule) -> PyResult<()> {
         categories: Vec<&PyString>,
         name: Option<&str>,
     ) -> PyResult<&'p PyTuple> {
-        let mut out = Vec::with_capacity(categories.len());
+        let mut x = CategoryBitMap::new();
         for cat in categories.iter() {
             if let Ok(s) = cat.to_str() {
-                out.push(s)
+                x.try_extend(s).map_err(|err| {
+                    let name = name.unwrap_or("cats");
+                    match err {
+                        Error::InvalidCategory(category) => PyTypeError::new_err(format!(
+                            "In {}={:?}, '{}' is not a valid Unicode category.",
+                            name, categories, category
+                        )),
+                        Error::InvalidCodepoints(left, right) => {
+                            PyAssertionError::new_err(format!("{} < {}", left, right))
+                        }
+                    }
+                })?
             } else {
                 let bytes = unsafe {
                     py.from_owned_ptr::<PyBytes>(ffi::PyUnicode_AsEncodedString(
@@ -143,8 +153,9 @@ fn charmap(py: Python, module: &PyModule) -> PyResult<()> {
             }
         }
 
-        get_unicode_version()
-            .as_general_categories(out.as_slice())
+        Ok(PyTuple::new(py, x.iter()))
+            // get_unicode_version()
+            //     .as_general_categories(out.as_slice())
             .map_err(|err| {
                 let name = name.unwrap_or("cats");
                 match err {
@@ -157,7 +168,7 @@ fn charmap(py: Python, module: &PyModule) -> PyResult<()> {
                     }
                 }
             })
-            .map(|cats| PyTuple::new(py, cats))
+        //     .map(|cats| PyTuple::new(py, cats))
     }
     module.add_wrapped(wrap_pyfunction!(as_general_categories))?;
 
@@ -182,27 +193,39 @@ fn charmap(py: Python, module: &PyModule) -> PyResult<()> {
     ) -> PyResult<&'p PyTuple> {
         // The following conversion is here to match the original Python implementation behavior
         let exclude_categories = if let Some(cats) = exclude_categories {
-            if let Ok(items) = cats.extract::<Vec<&str>>() {
-                Some(items)
-            } else if let Ok(items) = cats.extract::<HashSet<&str>>() {
-                Some(items.into_iter().collect())
+            if let Ok(iter) = cats.iter() {
+                let mut out = CategoryBitMap::new();
+                for item in iter {
+                    if let Ok(Ok(x)) = item.map(|i| i.extract::<&str>()) {
+                        out.try_extend(x).unwrap()
+                    } else {
+                        return Err(PyTypeError::new_err(
+                            "Expected an iterable of valid Unicode categories",
+                        ));
+                    }
+                }
+                Some(out)
             } else {
-                return Err(PyTypeError::new_err(
-                    "Expected an iterable of valid Unicode categories",
-                ));
+                None
             }
         } else {
             None
         };
         let include_categories = if let Some(cats) = include_categories {
-            if let Ok(items) = cats.extract::<Vec<&str>>() {
-                Some(items)
-            } else if let Ok(items) = cats.extract::<HashSet<&str>>() {
-                Some(items.into_iter().collect())
+            if let Ok(iter) = cats.iter() {
+                let mut out = CategoryBitMap::new();
+                for item in iter {
+                    if let Ok(Ok(x)) = item.map(|i| i.extract::<&str>()) {
+                        out.try_extend(x).unwrap()
+                    } else {
+                        return Err(PyTypeError::new_err(
+                            "Expected an iterable of valid Unicode categories",
+                        ));
+                    }
+                }
+                Some(out)
             } else {
-                return Err(PyTypeError::new_err(
-                    "Expected an iterable of valid Unicode categories",
-                ));
+                None
             }
         } else {
             None
@@ -210,8 +233,8 @@ fn charmap(py: Python, module: &PyModule) -> PyResult<()> {
         let min_codepoint = min_codepoint.map(|x| x.extract::<u32>().unwrap_or(0));
         let max_codepoint = max_codepoint.map(|x| x.extract::<u32>().unwrap_or(0));
         let result = get_unicode_version().query(
-            exclude_categories.as_deref(),
-            include_categories.as_deref(),
+            exclude_categories,
+            include_categories,
             min_codepoint,
             max_codepoint,
             include_characters,
