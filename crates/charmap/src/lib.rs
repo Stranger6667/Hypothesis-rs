@@ -251,7 +251,7 @@ impl UnicodeVersion {
                 result.push((max(u, min_codepoint), min(v, max_codepoint)))
             }
         }
-        let result = inner::union_intervals(result.as_slice(), character_intervals.as_slice());
+        let result = inner::union_intervals(result, character_intervals);
         let result = inner::subtract_intervals(result, exclude_intervals.as_slice());
         if let Ok(mut cache) = QUERY_CACHE.lock() {
             cache.insert(cache_key, result.clone());

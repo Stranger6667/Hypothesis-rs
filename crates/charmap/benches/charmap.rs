@@ -28,10 +28,10 @@ fn bench_charmap(c: &mut Criterion) {
 
 fn union_intervals(c: &mut Criterion) {
     let map = charmap::UnicodeVersion::V13.charmap();
-    let lowercase = black_box(map.get("Ll").unwrap());
-    let uppercase = black_box(map.get("Lu").unwrap());
     c.bench_function("union intervals", |b| {
         b.iter(|| {
+            let lowercase = black_box(map.get("Ll").unwrap().to_vec());
+            let uppercase = black_box(map.get("Lu").unwrap().to_vec());
             charmap::union_intervals(lowercase, uppercase);
         })
     });

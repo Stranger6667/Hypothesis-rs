@@ -36,21 +36,21 @@ pub fn make_categories(version: UnicodeVersion) -> Vec<Category> {
 // Practically all interval values are < u32::MAX
 // Therefore there will be no panic (debug) / wrapping (release)
 #[allow(clippy::integer_arithmetic)]
-pub fn union_intervals(x: &[Interval], y: &[Interval]) -> Vec<Interval> {
-    if x.is_empty() {
-        y.to_vec()
-    } else if y.is_empty() {
-        x.to_vec()
+pub fn union_intervals(mut left: Vec<Interval>, right: Vec<Interval>) -> Vec<Interval> {
+    if left.is_empty() {
+        right
+    } else if right.is_empty() {
+        left
     } else {
-        let mut intervals = [x, y].concat();
+        left.extend(right);
         // Separate `sort` and `reverse` calls are generally faster than `sort_by_key` with `Reverse`
         // Note! merge sort is faster than quicksort on the test dataset - worth exploring why
         #[allow(clippy::stable_sort_primitive)]
-        intervals.sort();
-        intervals.reverse();
+        left.sort();
+        left.reverse();
         let mut result = Vec::with_capacity(16);
-        result.push(intervals.pop().expect("It is not empty"));
-        while let Some((u, v)) = intervals.pop() {
+        result.push(left.pop().expect("It is not empty"));
+        while let Some((u, v)) = left.pop() {
             let (_, b) = result.last_mut().expect("It is not empty");
             if u <= *b + 1 {
                 *b = max(v, *b);
@@ -66,38 +66,38 @@ pub fn union_intervals(x: &[Interval], y: &[Interval]) -> Vec<Interval> {
 // Practically all interval values are < u32::MAX
 // Therefore there will be no panic (debug) / wrapping (release)
 #[allow(clippy::integer_arithmetic)]
-pub fn subtract_intervals(mut x: Vec<Interval>, y: &[Interval]) -> Vec<Interval> {
-    if y.is_empty() {
-        x
+pub fn subtract_intervals(mut left: Vec<Interval>, right: &[Interval]) -> Vec<Interval> {
+    if right.is_empty() {
+        left
     } else {
         let (mut i, mut j) = (0usize, 0usize);
-        let mut result = Vec::with_capacity(x.len());
-        while i < x.len() && j < y.len() {
-            let (xl, xr) = x[i];
-            let (yl, yr) = y[j];
-            if yr < xl {
+        let mut result = Vec::with_capacity(left.len());
+        while i < left.len() && j < right.len() {
+            let (ll, lr) = left[i];
+            let (rl, rr) = right[j];
+            if rr < ll {
                 j += 1;
-            } else if yl > xr {
-                result.push(x[i]);
+            } else if rl > lr {
+                result.push(left[i]);
                 i += 1;
-            } else if yl <= xl {
-                if yr >= xr {
+            } else if rl <= ll {
+                if rr >= lr {
                     i += 1;
                 } else {
-                    x[i].0 = yr + 1;
+                    left[i].0 = rr + 1;
                     j += 1
                 }
             } else {
-                result.push((xl, yl - 1));
-                if yr < xr {
-                    x[i].0 = yr + 1;
+                result.push((ll, rl - 1));
+                if rr < lr {
+                    left[i].0 = rr + 1;
                     j += 1;
                 } else {
                     i += 1;
                 }
             }
         }
-        result.extend_from_slice(&x[i..]);
+        result.extend_from_slice(&left[i..]);
         result
     }
 }
@@ -177,8 +177,9 @@ pub fn query_for_key(version: UnicodeVersion, key: &[Category]) -> Vec<Interval>
         let right = version
             .charmap()
             .get(last)
-            .expect("It should be a valid Unicode category");
-        let result = union_intervals(left.as_slice(), right);
+            .expect("It should be a valid Unicode category")
+            .to_vec();
+        let result = union_intervals(left, right);
         if let Ok(mut cache) = CATEGORY_INDEX_CACHE.lock() {
             cache.insert(key.to_vec(), result.clone());
         }
@@ -194,20 +195,23 @@ mod tests {
 
     #[test]
     fn union_intervals_empty() {
-        assert_eq!(union_intervals(&[], &[]), &[]);
-        assert_eq!(union_intervals(&[], &[(1, 2)]), &[(1, 2)]);
-        assert_eq!(union_intervals(&[(1, 2)], &[]), &[(1, 2)]);
+        assert_eq!(union_intervals(vec![], vec![]), &[]);
+        assert_eq!(union_intervals(vec![], vec![(1, 2)]), &[(1, 2)]);
+        assert_eq!(union_intervals(vec![(1, 2)], vec![]), &[(1, 2)]);
     }
 
     #[test]
     fn union_handles_totally_overlapped_gap() {
-        assert_eq!(union_intervals(&[(2, 3)], &[(1, 2), (4, 5)]), &[(1, 5)])
+        assert_eq!(
+            union_intervals(vec![(2, 3)], vec![(1, 2), (4, 5)]),
+            &[(1, 5)]
+        )
     }
 
     #[test]
     fn union_handles_partially_overlapped_gap() {
         assert_eq!(
-            union_intervals(&[(3, 3)], &[(1, 2), (5, 5)]),
+            union_intervals(vec![(3, 3)], vec![(1, 2), (5, 5)]),
             &[(1, 3), (5, 5)]
         )
     }
@@ -300,7 +304,7 @@ mod tests {
     fn successive_union() {
         let mut x = vec![];
         for v in UnicodeVersion::V13.charmap().values() {
-            x = union_intervals(x.as_slice(), v);
+            x = union_intervals(x, v.to_vec());
         }
         assert_eq!(x, vec![(0, MAX_CODEPOINT)])
     }
