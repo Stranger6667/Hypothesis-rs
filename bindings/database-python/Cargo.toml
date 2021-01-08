@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 database = { path = "../../crates/database", version = "*" }
-pyo3 = { version = "0.12.3", features = ["extension-module"] }
+pyo3 = { version = "0.13.0", features = ["extension-module"] }
 
 [profile.release]
 codegen-units = 1

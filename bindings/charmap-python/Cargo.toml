@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 charmap = { path = "../../crates/charmap", version = "*" }
-pyo3 = { version = "0.12.3", features = ["extension-module"] }
+pyo3 = { version = "0.13.0", features = ["extension-module"] }
 lazy_static = "1.4"
 pyo3-built = "0.4"
 
