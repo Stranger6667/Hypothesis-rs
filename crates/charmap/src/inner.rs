@@ -110,7 +110,8 @@ pub fn intervals(string: &str) -> Vec<Interval> {
     }
     let mut intervals: SmallVec<[Interval; 32]> =
         string.chars().map(|c| (c as u32, c as u32)).collect();
-    intervals.sort_unstable();
+    #[allow(clippy::stable_sort_primitive)]
+    intervals.sort();
     intervals.reverse();
     let mut result = Vec::with_capacity(16);
     result.push(intervals.pop().expect("It is not empty"));
