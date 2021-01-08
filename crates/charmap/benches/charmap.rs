@@ -50,7 +50,7 @@ fn subtract_intervals(c: &mut Criterion) {
 
 fn intervals(c: &mut Criterion) {
     let string = "abcdef0123456789";
-    c.bench_function("intervals", |b| {
+    c.bench_function("char intervals", |b| {
         b.iter(|| {
             charmap::intervals(string);
         })

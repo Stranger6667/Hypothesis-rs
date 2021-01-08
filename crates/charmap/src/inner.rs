@@ -45,7 +45,7 @@ pub fn union_intervals(mut left: Vec<Interval>, right: Vec<Interval>) -> Vec<Int
         // Separate `sort` and `reverse` calls are generally faster than `sort_by_key` with `Reverse`
         // Note! merge sort is faster than quicksort on the test dataset - worth exploring why
         #[allow(clippy::stable_sort_primitive)]
-        left.sort();
+        left.sort_by_key(|a| a.0);
         left.reverse();
         let mut result = Vec::with_capacity(16);
         result.push(left.pop().expect("It is not empty"));
@@ -112,7 +112,7 @@ pub fn intervals(string: &str) -> Vec<Interval> {
     let mut intervals: SmallVec<[Interval; 32]> =
         string.chars().map(|c| (c as u32, c as u32)).collect();
     #[allow(clippy::stable_sort_primitive)]
-    intervals.sort();
+    intervals.sort_by_key(|a| a.0);
     intervals.reverse();
     let mut result = Vec::with_capacity(16);
     result.push(intervals.pop().expect("It is not empty"));
