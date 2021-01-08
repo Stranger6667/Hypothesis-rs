@@ -303,6 +303,7 @@ mod tests {
     #[test_case(None, None, Some(0), Some(128), None, None, &[(0, 128)])]
     #[test_case(None, Some(&["Lu"]), Some(0), Some(128), None, None, &[(65, 90)])]
     #[test_case(None, Some(&["Lu"]), Some(0), Some(128), Some("☃"), None, &[(65, 90), (9731, 9731)])]
+    #[test_case(None, None, Some(0), Some(68104), Some("\u{10A07}"), None, &[(0, 68104)])]
     fn query_works(
         exclude_categories: Option<&[&str]>,
         include_categories: Option<&[&str]>,

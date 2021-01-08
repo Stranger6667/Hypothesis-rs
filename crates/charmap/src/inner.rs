@@ -42,24 +42,27 @@ pub fn union_intervals(mut left: Vec<Interval>, right: Vec<Interval>) -> Vec<Int
         left
     } else {
         left.extend(right);
-        // Separate `sort` and `reverse` calls are generally faster than `sort_by_key` with `Reverse`
         // Note! merge sort is faster than quicksort on the test dataset - worth exploring why
         #[allow(clippy::stable_sort_primitive)]
         left.sort_by_key(|a| a.0);
-        left.reverse();
-        let mut result = Vec::with_capacity(16);
-        result.push(left.pop().expect("It is not empty"));
-        while let Some((u, v)) = left.pop() {
-            let (_, b) = result.last_mut().expect("It is not empty");
-            if u <= *b + 1 {
-                if v > *b {
-                    *b = v;
-                };
+        // Merge intervals in-place
+        let mut border = 0usize;
+        for index in 1..left.len() {
+            let interval = left[index];
+            if interval.0 <= left[border].1 + 1 {
+                // Intervals overlap
+                if interval.1 > left[border].1 {
+                    // Extend the one behind the border only if the current candidate right border
+                    // is greater
+                    left[border].1 = interval.1;
+                }
             } else {
-                result.push((u, v))
+                // No overlap, this interval should be next behind the border
+                border += 1;
+                left[border] = interval;
             }
         }
-        result
+        left[..=border].to_vec()
     }
 }
 
@@ -113,20 +116,23 @@ pub fn intervals(string: &str) -> Vec<Interval> {
         string.chars().map(|c| (c as u32, c as u32)).collect();
     #[allow(clippy::stable_sort_primitive)]
     intervals.sort_by_key(|a| a.0);
-    intervals.reverse();
-    let mut result = Vec::with_capacity(16);
-    result.push(intervals.pop().expect("It is not empty"));
-    while let Some((u, v)) = intervals.pop() {
-        let (_, b) = result.last_mut().expect("It is not empty");
-        if u <= *b + 1 {
-            if v > *b {
-                *b = v;
-            };
+    let mut border = 0usize;
+    for index in 1..intervals.len() {
+        let interval = intervals[index];
+        if interval.0 <= intervals[border].1 + 1 {
+            // Intervals overlap
+            if interval.1 > intervals[border].1 {
+                // Extend the one behind the border only if the current candidate right border
+                // is greater
+                intervals[border].1 = interval.1;
+            }
         } else {
-            result.push((u, v))
+            // No overlap, this interval should be next behind the border
+            border += 1;
+            intervals[border] = interval;
         }
     }
-    result
+    intervals[..=border].to_vec()
 }
 
 /// Return a normalised tuple of all Unicode categories that are in `include`, but not in `exclude`.
@@ -234,6 +240,8 @@ mod tests {
 
     #[test]
     fn intervals_works() {
+        assert_eq!(intervals("\u{10A07}"), &[(68103, 68103)]);
+        assert_eq!(intervals("a"), &[(97, 97)]);
         assert_eq!(intervals("aa"), &[(97, 97)]);
         assert_eq!(intervals("abcdef0123456789"), &[(48, 57), (97, 102)]);
         assert_eq!(intervals("01234fedcba98765"), &[(48, 57), (97, 102)]);
