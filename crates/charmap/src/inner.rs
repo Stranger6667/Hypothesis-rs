@@ -2,7 +2,6 @@ use crate::{Category, CharMap, Interval, TableEntry, UnicodeVersion, MAX_CODEPOI
 use ahash::{AHashMap, AHashSet};
 use lazy_static::lazy_static;
 use smallvec::SmallVec;
-use std::cmp::max;
 use std::convert::TryInto;
 use std::sync::Mutex;
 
@@ -53,7 +52,9 @@ pub fn union_intervals(mut left: Vec<Interval>, right: Vec<Interval>) -> Vec<Int
         while let Some((u, v)) = left.pop() {
             let (_, b) = result.last_mut().expect("It is not empty");
             if u <= *b + 1 {
-                *b = max(v, *b);
+                if v > *b {
+                    *b = v;
+                };
             } else {
                 result.push((u, v))
             }
@@ -118,7 +119,9 @@ pub fn intervals(string: &str) -> Vec<Interval> {
     while let Some((u, v)) = intervals.pop() {
         let (_, b) = result.last_mut().expect("It is not empty");
         if u <= *b + 1 {
-            *b = max(v, *b);
+            if v > *b {
+                *b = v;
+            };
         } else {
             result.push((u, v))
         }
