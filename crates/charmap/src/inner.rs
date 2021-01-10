@@ -32,9 +32,9 @@ pub fn make_categories(version: UnicodeVersion) -> Vec<Category> {
 }
 
 #[inline]
-pub fn union_intervals(mut left: Vec<Interval>, right: Vec<Interval>) -> Vec<Interval> {
+pub fn union_intervals(mut left: Vec<Interval>, right: &[Interval]) -> Vec<Interval> {
     if left.is_empty() {
-        right
+        right.to_vec()
     } else if right.is_empty() {
         left
     } else {
@@ -175,8 +175,7 @@ pub fn query_for_key(version: UnicodeVersion, key: &[Category]) -> Vec<Interval>
         let right = version
             .charmap()
             .get(last)
-            .expect("It should be a valid Unicode category")
-            .to_vec();
+            .expect("It should be a valid Unicode category");
         let result = union_intervals(left, right);
         if let Ok(mut cache) = CATEGORY_INDEX_CACHE.lock() {
             cache.insert(key.to_vec(), result.clone());
@@ -193,23 +192,20 @@ mod tests {
 
     #[test]
     fn union_intervals_empty() {
-        assert_eq!(union_intervals(vec![], vec![]), &[]);
-        assert_eq!(union_intervals(vec![], vec![(1, 2)]), &[(1, 2)]);
-        assert_eq!(union_intervals(vec![(1, 2)], vec![]), &[(1, 2)]);
+        assert_eq!(union_intervals(vec![], &[]), &[]);
+        assert_eq!(union_intervals(vec![], &[(1, 2)]), &[(1, 2)]);
+        assert_eq!(union_intervals(vec![(1, 2)], &[]), &[(1, 2)]);
     }
 
     #[test]
     fn union_handles_totally_overlapped_gap() {
-        assert_eq!(
-            union_intervals(vec![(2, 3)], vec![(1, 2), (4, 5)]),
-            &[(1, 5)]
-        )
+        assert_eq!(union_intervals(vec![(2, 3)], &[(1, 2), (4, 5)]), &[(1, 5)])
     }
 
     #[test]
     fn union_handles_partially_overlapped_gap() {
         assert_eq!(
-            union_intervals(vec![(3, 3)], vec![(1, 2), (5, 5)]),
+            union_intervals(vec![(3, 3)], &[(1, 2), (5, 5)]),
             &[(1, 3), (5, 5)]
         )
     }
@@ -304,7 +300,7 @@ mod tests {
     fn successive_union() {
         let mut x = vec![];
         for v in UnicodeVersion::V13.charmap().values() {
-            x = union_intervals(x, v.to_vec());
+            x = union_intervals(x, v);
         }
         assert_eq!(x, vec![(0, MAX_CODEPOINT)])
     }

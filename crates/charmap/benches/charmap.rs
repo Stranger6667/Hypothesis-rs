@@ -31,7 +31,7 @@ fn union_intervals(c: &mut Criterion) {
     c.bench_function("union intervals", |b| {
         b.iter(|| {
             let lowercase = black_box(map.get("Ll").unwrap().to_vec());
-            let uppercase = black_box(map.get("Lu").unwrap().to_vec());
+            let uppercase = black_box(map.get("Lu").unwrap());
             charmap::union_intervals(lowercase, uppercase);
         })
     });
