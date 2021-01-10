@@ -121,7 +121,7 @@ fn merge_intervals(intervals: &mut [Interval]) -> usize {
             intervals[border] = interval;
         }
     }
-    border
+    border + 1
 }
 
 /// Return a normalised tuple of all Unicode categories that are in `include`, but not in `exclude`.
