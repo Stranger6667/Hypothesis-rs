@@ -39,7 +39,9 @@ pub fn union_intervals(mut left: Vec<Interval>, right: Vec<Interval>) -> Vec<Int
         left
     } else {
         left.extend(right);
-        merge_intervals(&mut left).to_vec()
+        let border = merge_intervals(&mut left);
+        left.truncate(border);
+        left
     }
 }
 
@@ -90,14 +92,16 @@ pub fn intervals(string: &str) -> Vec<Interval> {
     }
     let mut intervals: SmallVec<[Interval; 32]> =
         string.chars().map(|c| (c as u32, c as u32)).collect();
-    merge_intervals(&mut intervals).to_vec()
+    let border = merge_intervals(&mut intervals);
+    intervals.truncate(border);
+    intervals.to_vec()
 }
 
 // Note, `#[inline]` leads to worse performance
 // Practically all interval values are < u32::MAX
 // Therefore there will be no panic (debug) / wrapping (release)
 #[allow(clippy::integer_arithmetic)]
-fn merge_intervals(intervals: &mut [Interval]) -> &[Interval] {
+fn merge_intervals(intervals: &mut [Interval]) -> usize {
     // Note! merge sort is faster than quicksort on the test dataset - worth exploring why
     #[allow(clippy::stable_sort_primitive)]
     intervals.sort_by_key(|a| a.0);
@@ -117,7 +121,7 @@ fn merge_intervals(intervals: &mut [Interval]) -> &[Interval] {
             intervals[border] = interval;
         }
     }
-    &intervals[..=border]
+    border
 }
 
 /// Return a normalised tuple of all Unicode categories that are in `include`, but not in `exclude`.
