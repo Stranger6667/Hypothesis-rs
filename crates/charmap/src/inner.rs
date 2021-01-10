@@ -40,7 +40,7 @@ pub fn union_intervals(mut left: Vec<Interval>, right: &[Interval]) -> Vec<Inter
     } else {
         left.extend(right);
         let border = merge_intervals(&mut left);
-        left.truncate(border);
+        left.truncate(border + 1);
         left
     }
 }
@@ -93,7 +93,7 @@ pub fn intervals(string: &str) -> Vec<Interval> {
     let mut intervals: SmallVec<[Interval; 32]> =
         string.chars().map(|c| (c as u32, c as u32)).collect();
     let border = merge_intervals(&mut intervals);
-    intervals.truncate(border);
+    intervals.truncate(border + 1);
     intervals.to_vec()
 }
 
