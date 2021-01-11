@@ -1,18 +1,18 @@
 use crate::fetch::Fetch;
 use crate::{Example, ExampleDatabase, Input};
-use std::collections::{HashMap, HashSet};
+use ahash::{AHashMap, AHashSet};
 
 #[derive(Debug)]
 /// A non-persistent example database, implemented in terms of a hashmaps of sets.
 pub struct InMemoryExampleDatabase {
-    data: HashMap<Vec<u8>, HashSet<Example>>,
+    data: AHashMap<Vec<u8>, AHashSet<Example>>,
 }
 
 impl InMemoryExampleDatabase {
     /// Create a new non-persistent example database.
     pub fn new() -> InMemoryExampleDatabase {
         InMemoryExampleDatabase {
-            data: HashMap::with_capacity(64),
+            data: AHashMap::with_capacity(64),
         }
     }
 }
@@ -28,7 +28,7 @@ impl ExampleDatabase for InMemoryExampleDatabase {
     fn save(&mut self, key: &Input, value: &Input) {
         self.data
             .entry(key.to_vec())
-            .or_insert_with(HashSet::new)
+            .or_insert_with(AHashSet::new)
             .insert(value.to_vec());
     }
 
